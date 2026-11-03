@@ -11,8 +11,8 @@ const dbConfig: mssql.config = {
   database: process.env.DB_DATABASE,
   port: Number(process.env.DB_PORT) || 1433,
   options: {
-    encrypt: true, // Requerido si usas Azure, recomendado siempre
-    trustServerCertificate: true, // Necesario para entornos de desarrollo local
+    encrypt: false, // desarrollo local
+    trustServerCertificate: true,
   },
   pool: {
     max: 10,
