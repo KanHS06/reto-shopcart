@@ -27,28 +27,163 @@ END;
 GO
 
 --------------------------------------------------------------------------------
--- Checkout del Carrito de Compras
+-- Registrar un nuevo usuario (INSERT)
 --------------------------------------------------------------------------------
-CREATE OR ALTER PROCEDURE SP_ProcessCheckout
-    @UserId INT,
-    @CartXml XML, -- Estructura esperada: <items><item id="1" qty="2" price="89.99" /></items>
-    @GeneratedOrderId INT OUTPUT -- Retorna el ID de la orden generada al Backend
+CREATE OR ALTER PROCEDURE SP_RegisterUser
+    @Email VARCHAR(150),
+    @PasswordHash VARCHAR(255),
+    @Name VARCHAR(100),
+    @GeneratedUserId INT OUTPUT
 AS
 BEGIN
     SET NOCOUNT ON;
-    SET XACT_ABORT ON; -- Si ocurre un error, ROLLBACK 
-
-    -- Variables de control
-    DECLARE @TotalAmount DECIMAL(10,2) = 0;
     
-    -- Crear una tabla temporal para estructurar y validar el XML del carrito
-    CREATE TABLE #TmpCart (
-        product_id INT,
-        quantity INT,
-        price DECIMAL(10,2)
-    );
+    -- Validación: Evitar correos duplicados antes de insertar
+    IF EXISTS (SELECT 1 FROM Users WHERE email = @Email)
+    BEGIN
+        RAISERROR('EMAIL_ALREADY_EXISTS', 16, 1);
+        RETURN;
+    END
 
-    -- Parsear el XML e insertarlo en la tabla temporal
+    INSERT INTO Users (email, password_hash, name, created_at)
+    VALUES (@Email, @PasswordHash, @Name, GETDATE());
+
+    SET @GeneratedUserId = SCOPE_IDENTITY();
+END;
+GO
+
+--------------------------------------------------------------------------------
+-- Gestionar Refresh Tokens
+--------------------------------------------------------------------------------
+CREATE OR ALTER PROCEDURE SP_SaveRefreshToken
+    @UserId INT,
+    @Token VARCHAR(255),
+    @ExpiresAt DATETIME
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Seguridad: Eliminamos tokens viejos del mismo usuario para evitar acumulación (DELETE)
+    DELETE FROM RefreshTokens WHERE user_id = @UserId OR expires_at < GETDATE();
+
+    -- Insertar el nuevo token dinámico (INSERT)
+    INSERT INTO RefreshTokens (user_id, token, expires_at)
+    VALUES (@UserId, @Token, @ExpiresAt);
+END;
+GO
+
+--------------------------------------------------------------------------------
+-- Crear un Producto (INSERT)
+--------------------------------------------------------------------------------
+CREATE OR ALTER PROCEDURE SP_AdminCreateProduct
+    @Name VARCHAR(150),
+    @Description TEXT,
+    @Price DECIMAL(10,2),
+    @Stock INT,
+    @ImageUrl VARCHAR(255),
+    @GeneratedProductId INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    INSERT INTO Products (name, description, price, stock, image_url, created_at)
+    VALUES (@Name, @Description, @Price, @Stock, @ImageUrl, GETDATE());
+
+    SET @GeneratedProductId = SCOPE_IDENTITY();
+END;
+GO
+
+--------------------------------------------------------------------------------
+-- Actualizar un Producto (UPDATE)
+--------------------------------------------------------------------------------
+CREATE OR ALTER PROCEDURE SP_AdminUpdateProduct
+    @Id INT,
+    @Name VARCHAR(150),
+    @Description TEXT,
+    @Price DECIMAL(10,2),
+    @Stock INT,
+    @ImageUrl VARCHAR(255)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    UPDATE Products
+    SET name = @Name,
+        description = @Description,
+        price = @Price,
+        stock = @Stock,
+        image_url = @ImageUrl
+    WHERE id = @Id;
+
+    -- Devolver las filas afectadas para saber si el producto existía
+    SELECT @@ROWCOUNT AS RowsAffected;
+END;
+GO
+
+--------------------------------------------------------------------------------
+-- Eliminar un Producto (DELETE)
+--------------------------------------------------------------------------------
+CREATE OR ALTER PROCEDURE SP_AdminDeleteProduct
+    @Id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    -- Controlando restricciones.
+    DELETE FROM Products WHERE id = @Id;
+    
+    SELECT @@ROWCOUNT AS RowsAffected;
+END;
+GO
+
+--------------------------------------------------------------------------------
+-- PROCEDIMIENTO: Validar y Obtener un Cupón
+--------------------------------------------------------------------------------
+CREATE OR ALTER PROCEDURE SP_GetCouponByCode
+    @Code VARCHAR(50)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT id, code, discount_percent, expires_at, is_active
+    FROM Coupons
+    WHERE code = @Code AND is_active = 1 AND expires_at > GETDATE();
+END;
+GO
+
+--------------------------------------------------------------------------------
+-- PROCEDIMIENTO: Insertar en la Bitácora
+--------------------------------------------------------------------------------
+CREATE OR ALTER PROCEDURE SP_CreateAuditLog
+    @UserId INT,
+    @Action VARCHAR(100),
+    @Description TEXT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO AuditLog (user_id, action, description, created_at)
+    VALUES (@UserId, @Action, @Description, GETDATE());
+END;
+GO
+
+--------------------------------------------------------------------------------
+-- ACTUALIZACIÓN DEL CHECKOUT (Con Cupones, Descuentos y Bitácora)
+--------------------------------------------------------------------------------
+CREATE OR ALTER PROCEDURE SP_ProcessCheckout
+    @UserId INT,
+    @CartXml XML,
+    @CouponCode VARCHAR(50) = NULL, -- Parámetro opcional nuevo
+    @GeneratedOrderId INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @Subtotal DECIMAL(10,2) = 0;
+    DECLARE @TotalAmount DECIMAL(10,2) = 0;
+    DECLARE @DiscountPercent DECIMAL(5,2) = 0;
+    
+    CREATE TABLE #TmpCart (product_id INT, quantity INT, price DECIMAL(10,2));
+
     INSERT INTO #TmpCart (product_id, quantity, price)
     SELECT 
         Param.Item.value('@id', 'INT'),
@@ -56,60 +191,55 @@ BEGIN
         Param.Item.value('@price', 'DECIMAL(10,2)')
     FROM @CartXml.nodes('/items/item') AS Param(Item);
 
-    -- Calcular el monto total acumulado de la compra
-    SELECT @TotalAmount = SUM(quantity * price) FROM #TmpCart;
+    SELECT @Subtotal = SUM(quantity * price) FROM #TmpCart;
+    SET @TotalAmount = @Subtotal;
 
-    -- INICIAR TRANSACCIÓN SEGURA
-    BEGIN TRANSACTION;
+    -- Validar si viene un cupón y obtener su descuento
+    IF @CouponCode IS NOT NULL AND @CouponCode <> ''
+    BEGIN
+        SELECT @DiscountPercent = discount_percent 
+        FROM Coupons 
+        WHERE code = @CouponCode AND is_active = 1 AND expires_at > GETDATE();
 
-    BEGIN TRY
-        -- Si hay algún registro donde el stock disponible sea menor a la cantidad solicitada, lanza error
-        IF EXISTS (
-            SELECT 1 
-            FROM #TmpCart t
-            JOIN Products p ON t.product_id = p.id
-            WHERE p.stock < t.quantity
-        )
+        IF @DiscountPercent > 0
         BEGIN
-            RAISERROR('STOCK_INSUFFICIENT: Uno o más productos seleccionados ya no cuentan con stock disponible.', 16, 1);
+            SET @TotalAmount = @Subtotal - (@Subtotal * (@DiscountPercent / 100.00));
+        END
+        ELSE
+        BEGIN
+            RAISERROR('COUPON_INVALID: El cupón ingresado no es válido o ya expiró.', 16, 1);
+            RETURN;
+        END
+    END
+
+    BEGIN TRANSACTION;
+    BEGIN TRY
+        IF EXISTS (SELECT 1 FROM #TmpCart t JOIN Products p ON t.product_id = p.id WHERE p.stock < t.quantity)
+        BEGIN
+            RAISERROR('STOCK_INSUFFICIENT', 16, 1);
         END
 
-        -- Insertar la cabecera de la Orden
+        -- Insertar Orden con el precio final afectado por el cupón
         INSERT INTO Orders (user_id, total_amount, status, created_at)
         VALUES (@UserId, @TotalAmount, 'COMPLETED', GETDATE());
 
-        -- Capturar el ID generado para la nueva orden
         SET @GeneratedOrderId = SCOPE_IDENTITY();
 
-        -- Insertar los detalles de la Orden desde nuestra tabla temporal
         INSERT INTO OrderDetails (order_id, product_id, quantity, price_at_purchase)
-        SELECT @GeneratedOrderId, product_id, quantity, price
-        FROM #TmpCart;
+        SELECT @GeneratedOrderId, product_id, quantity, price FROM #TmpCart;
 
-        -- Actualizar el Inventario
-        UPDATE p
-        SET p.stock = p.stock - t.quantity
-        FROM Products p
-        JOIN #TmpCart t ON p.id = t.product_id;
+        UPDATE p SET p.stock = p.stock - t.quantity FROM Products p JOIN #TmpCart t ON p.id = t.product_id;
 
-        -- CONFIRMAR OPERACIONES SI TODO FUE EXITOSO
+        -- 📝 REGISTRO EN BITÁCORA AUTOMÁTICO DENTRO DE LA TRANSACCIÓN
+        DECLARE @LogDesc TEXT = 'Usuario generó la orden de compra #' + CAST(@GeneratedOrderId AS VARCHAR(10)) + (CASE WHEN @DiscountPercent > 0 THEN ' aplicando el cupón ' + @CouponCode ELSE '' END);
+        EXEC SP_CreateAuditLog @UserId, 'CHECKOUT', @LogDesc;
+
         COMMIT TRANSACTION;
-
-        -- Limpieza de tabla temporal
         DROP TABLE #TmpCart;
-
     END TRY
     BEGIN CATCH
-        -- Si algo falló dentro del bloque (Falta de stock, error de BD), deshace todo de inmediato
-        IF @@TRANCOUNT > 0
-        BEGIN
-            ROLLBACK TRANSACTION;
-        END
-
-        -- Limpieza de tabla temporal ante fallos
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
         IF OBJECT_ID('tempdb..#TmpCart') IS NOT NULL DROP TABLE #TmpCart;
-
-        -- Propagar el error original hacia Node.js para que el errorHandler lo capture
         THROW;
     END CATCH
 END;

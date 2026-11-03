@@ -49,3 +49,21 @@ CREATE TABLE OrderDetails (
     FOREIGN KEY (order_id) REFERENCES Orders(id) ON DELETE CASCADE,
     FOREIGN KEY (product_id) REFERENCES Products(id)
 );
+-- Tabla de Cupones de Descuento
+CREATE TABLE Coupons (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    code VARCHAR(50) UNIQUE NOT NULL,
+    discount_percent DECIMAL(5,2) NOT NULL CHECK (discount_percent > 0 AND discount_percent <= 100),
+    expires_at DATETIME NOT NULL,
+    is_active BIT DEFAULT 1
+);
+
+-- Tabla de Bitácora / Auditoría (Para rastrear acciones críticas)
+CREATE TABLE AuditLog (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    user_id INT NULL,
+    action VARCHAR(100) NOT NULL, -- 'LOGIN', 'CHECKOUT', 'CREATE_PRODUCT', etc.
+    description TEXT NOT NULL,
+    ip_address VARCHAR(45) NULL,
+    created_at DATETIME DEFAULT GETDATE()
+);

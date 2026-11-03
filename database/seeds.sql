@@ -25,3 +25,9 @@ VALUES
 ('Monitor Curvo UltraWide 34"', 'Resolución QHD, tasa de refresco de 144Hz y panel VA perfecto para multitasking.', 349.99, 10, 'https://unsplash.com', GETDATE()),
 ('Cargador Inalámbrico Rápido 15W', 'Soporte de carga rápida para dispositivos iOS y Android con protección térmica.', 25.00, 150, 'https://unsplash.com', GETDATE()),
 ('Mochila Impermeable para Laptop', 'Compartimento acolchado para laptops de hasta 16 pulgadas con puerto de carga USB integrado.', 39.95, 5, 'https://unsplash.com', GETDATE());
+
+INSERT INTO Coupons (code, discount_percent, expires_at, is_active)
+VALUES 
+('DESCUENTO10', 10.00, DATEADD(day, 30, GETDATE()), 1), -- Válido por 30 días
+('COMPRARETO', 25.00, DATEADD(day, 15, GETDATE()), 1),  -- Válido por 15 días
+('EXPIRADO50', 50.00, DATEADD(day, -1, GETDATE()), 1);  -- Expiró ayer
