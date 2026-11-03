@@ -67,3 +67,7 @@ CREATE TABLE AuditLog (
     ip_address VARCHAR(45) NULL,
     created_at DATETIME DEFAULT GETDATE()
 );
+
+ALTER TABLE Users 
+ADD role VARCHAR(20) NOT NULL DEFAULT 'Cliente' 
+CONSTRAINT CHK_Users_Role CHECK (role IN ('Cliente', 'Operador', 'Administrador'));

@@ -20,7 +20,7 @@ export const productRepository = {
     const result = await dbPool.request().execute('SP_GetProductsCatalog');
     return result.recordset as IProduct[];
   },
-  
+
   async create(product: Omit<IProduct, 'id' | 'created_at'>): Promise<number> {
     const request = dbPool.request();
     request.input('Name', mssql.VarChar(150), product.name);
@@ -28,7 +28,7 @@ export const productRepository = {
     request.input('Price', mssql.Decimal(10, 2), product.price);
     request.input('Stock', mssql.Int, product.stock);
     request.input('ImageUrl', mssql.VarChar(255), product.image_url);
-    request.output('GeneratedProductId', mssql.Int);
+    request.output('GeneratedProductId', mssql.Int, null);
 
     const result = await request.execute('SP_AdminCreateProduct');
     return result.output.GeneratedProductId as number;

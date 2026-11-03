@@ -7,7 +7,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
-    SELECT id, email, password_hash, name, created_at
+    SELECT id, email, password_hash, name, role, created_at
     FROM Users
     WHERE email = @Email;
 END;
@@ -171,7 +171,7 @@ GO
 CREATE OR ALTER PROCEDURE SP_ProcessCheckout
     @UserId INT,
     @CartXml XML,
-    @CouponCode VARCHAR(50) = NULL, -- Parámetro opcional nuevo
+    @CouponCode VARCHAR(50) = NULL,
     @GeneratedOrderId INT OUTPUT
 AS
 BEGIN
@@ -194,7 +194,6 @@ BEGIN
     SELECT @Subtotal = SUM(quantity * price) FROM #TmpCart;
     SET @TotalAmount = @Subtotal;
 
-    -- Validar si viene un cupón y obtener su descuento
     IF @CouponCode IS NOT NULL AND @CouponCode <> ''
     BEGIN
         SELECT @DiscountPercent = discount_percent 
@@ -219,7 +218,6 @@ BEGIN
             RAISERROR('STOCK_INSUFFICIENT', 16, 1);
         END
 
-        -- Insertar Orden con el precio final afectado por el cupón
         INSERT INTO Orders (user_id, total_amount, status, created_at)
         VALUES (@UserId, @TotalAmount, 'COMPLETED', GETDATE());
 
@@ -230,8 +228,9 @@ BEGIN
 
         UPDATE p SET p.stock = p.stock - t.quantity FROM Products p JOIN #TmpCart t ON p.id = t.product_id;
 
-        -- 📝 REGISTRO EN BITÁCORA AUTOMÁTICO DENTRO DE LA TRANSACCIÓN
-        DECLARE @LogDesc TEXT = 'Usuario generó la orden de compra #' + CAST(@GeneratedOrderId AS VARCHAR(10)) + (CASE WHEN @DiscountPercent > 0 THEN ' aplicando el cupón ' + @CouponCode ELSE '' END);
+        DECLARE @LogDesc VARCHAR(MAX);
+        SET @LogDesc = 'Usuario generó la orden de compra #' + CAST(@GeneratedOrderId AS VARCHAR(10)) + (CASE WHEN @DiscountPercent > 0 THEN ' aplicando el cupón ' + @CouponCode ELSE '' END);
+        
         EXEC SP_CreateAuditLog @UserId, 'CHECKOUT', @LogDesc;
 
         COMMIT TRANSACTION;

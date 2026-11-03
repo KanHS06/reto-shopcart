@@ -16,18 +16,26 @@ export const authRepository = {
       .input('Email', mssql.VarChar(150), email)
       .execute('SP_GetUserByEmail');
     
-    if (result.recordset.length === 0) return null;
+    if (result.recordset.length === 0) {
+      return null;
+    }
+    
     return result.recordset[0] as IUser;
   },
 
   async registerUser(email: string, passwordHash: string, name: string): Promise<number> {
     const request = dbPool.request();
+    
+    // Asignar los inputs con tipos explícitos
     request.input('Email', mssql.VarChar(150), email);
     request.input('PasswordHash', mssql.VarChar(255), passwordHash);
     request.input('Name', mssql.VarChar(100), name);
-    request.output('GeneratedUserId', mssql.Int);
+    
+    request.output('GeneratedUserId', mssql.Int, null);
 
     const result = await request.execute('SP_RegisterUser');
+    
+    // Retornar el ID generado por la base de datos
     return result.output.GeneratedUserId as number;
   },
 
