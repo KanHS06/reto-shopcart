@@ -12,4 +12,5 @@ dist/
 Thumbs.db
 
 postman/
+.postman/
 pruebas.http
