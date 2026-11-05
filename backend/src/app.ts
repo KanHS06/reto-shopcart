@@ -7,7 +7,10 @@ import { authRouter } from './controllers/authController.js';
 
 const app: Application = express();
 
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:5173', // Permite explícitamente a tu frontend
+  credentials: true                // Permite el intercambio de cookies/tokens mediante headers
+}));
 app.use(express.json());
 
 // Ruta de salud de la API

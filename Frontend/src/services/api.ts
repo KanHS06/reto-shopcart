@@ -1,8 +1,7 @@
 import axios, { InternalAxiosRequestConfig } from 'axios';
 
-// URL base de tu API (apuntando a tu backend de Node.js)
-//const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const API_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:5000/api';
+// URL base corregida apuntando al puerto 3000 de tu backend
+const API_URL = (import.meta as any).env.VITE_API_URL || 'http://localhost:3000/api';
 
 export const api = axios.create({
   baseURL: API_URL,

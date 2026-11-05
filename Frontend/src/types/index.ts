@@ -26,13 +26,19 @@ export interface Product {
 
 // --- CARRITO DE COMPRAS ---
 export interface CartItem {
-  id: number | string;         // ID del ítem en el carrito o del producto
-  productoId: number | string;
-  nombre: string;
-  precio: number;
-  cantidad: number;
+  id: number | string;
+  productoId?: number | string;
+  productId?: number | string;
+  nombre?: string;
+  name?: string;
+  precio?: number;
+  price?: number;
+  cantidad?: number;
+  quantity?: number;
   imagenUrl?: string;
-  stockDisponible: number;
+  imageUrl?: string;
+  stockDisponible?: number;
+  stock?: number;
 }
 
 export interface Cart {

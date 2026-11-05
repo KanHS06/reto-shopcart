@@ -1,13 +1,12 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
+import { Catalog } from './pages/Catalog';
+import { CartView } from './pages/CartView';
 
-// Aquí importaremos las páginas más adelante cuando las creemos
-// Por ahora dejamos placeholders o rutas base
-const Home = () => <div className="p-6 text-2xl font-bold">Catálogo de Productos (Próximamente)</div>;
+// Placeholders temporales para las demás vistas
 const Login = () => <div className="p-6 text-2xl font-bold">Iniciar Sesión (Próximamente)</div>;
-const CartView = () => <div className="p-6 text-2xl font-bold">Vista del Carrito (Próximamente)</div>;
 
 export function App() {
   return (
@@ -15,14 +14,21 @@ export function App() {
       <CartProvider>
         <Router>
           <div className="min-h-screen bg-gray-50 text-gray-900">
-            {/* Aquí iría tu barra de navegación (Navbar) */}
-            <header className="bg-white shadow p-4 font-semibold text-xl">
-              ShopCart - Tienda Online
+            {/* Barra de navegación superior */}
+            <header className="bg-white shadow px-6 py-4 flex justify-between items-center">
+              <Link to="/" className="font-bold text-xl text-blue-600">
+                ShopCart - Tienda Online
+              </Link>
+              <nav className="space-x-4">
+                <Link to="/" className="text-gray-600 hover:text-blue-600 font-medium">Catálogo</Link>
+                <Link to="/cart" className="text-gray-600 hover:text-blue-600 font-medium">Carrito</Link>
+                <Link to="/login" className="text-gray-600 hover:text-blue-600 font-medium">Login</Link>
+              </nav>
             </header>
             
-            <main className="container mx-auto py-6">
+            <main className="container mx-auto px-4 py-6">
               <Routes>
-                <Route path="/" element={<Home />} />
+                <Route path="/" element={<Catalog />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/cart" element={<CartView />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
