@@ -30,15 +30,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = async (correo: string, contrasena: string) => {
-    const data = await authService.login(correo, contrasena);
-    setUser(data.user);
-    localStorage.setItem('user', JSON.stringify(data.user));
+    try {
+      const data = await authService.login(correo, contrasena);
+      
+      // Ajuste por si la respuesta viene envuelta en .data debido al backend
+      const userData = (data as any).user || (data as any).data?.user;
+      
+      setUser(userData);
+      if (userData) {
+        localStorage.setItem('user', JSON.stringify(userData));
+      }
+    } catch (error) {
+      console.error("Error en AuthContext Login:", error);
+      throw error; //
+    }
   };
 
   const register = async (nombre: string, correo: string, contrasena: string) => {
-    const data = await authService.register(nombre, correo, contrasena);
-    setUser(data.user);
-    localStorage.setItem('user', JSON.stringify(data.user));
+    try {
+      const data = await authService.register(nombre, correo, contrasena);
+      
+      const userData = (data as any).user || (data as any).data?.user;
+      
+      setUser(userData);
+      if (userData) {
+        localStorage.setItem('user', JSON.stringify(userData));
+      }
+    } catch (error) {
+      console.error("Error en AuthContext Register:", error);
+      throw error; //
+    }
   };
 
   const logout = () => {

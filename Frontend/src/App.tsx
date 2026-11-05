@@ -1,12 +1,44 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { useAuth } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { Catalog } from './pages/Catalog';
 import { CartView } from './pages/CartView';
+import { LoginView } from './pages/LoginView';
 
-// Placeholders temporales para las demás vistas
-const Login = () => <div className="p-6 text-2xl font-bold">Iniciar Sesión (Próximamente)</div>;
+// Componente interno para manejar la barra de navegación con estado de usuario
+const NavigationBar: React.FC = () => {
+  const { user, isAuthenticated, logout } = useAuth();
+
+  return (
+    <header className="bg-white shadow px-6 py-4 flex justify-between items-center">
+      <Link to="/" className="font-bold text-xl text-blue-600">
+        ShopCart - Tienda Online
+      </Link>
+      <nav className="space-x-4 flex items-center">
+        <Link to="/" className="text-gray-600 hover:text-blue-600 font-medium">Catálogo</Link>
+        <Link to="/cart" className="text-gray-600 hover:text-blue-600 font-medium">Carrito</Link>
+        
+        {isAuthenticated ? (
+          <div className="flex items-center space-x-3 ml-2">
+            <span className="text-sm font-semibold text-gray-700">Hola, {user?.nombre || user?.name || 'Usuario'}</span>
+            <button
+              onClick={logout}
+              className="text-red-500 hover:text-red-700 text-sm font-medium"
+            >
+              Salir
+            </button>
+          </div>
+        ) : (
+          <Link to="/login" className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+            Login
+          </Link>
+        )}
+      </nav>
+    </header>
+  );
+};
 
 export function App() {
   return (
@@ -14,22 +46,12 @@ export function App() {
       <CartProvider>
         <Router>
           <div className="min-h-screen bg-gray-50 text-gray-900">
-            {/* Barra de navegación superior */}
-            <header className="bg-white shadow px-6 py-4 flex justify-between items-center">
-              <Link to="/" className="font-bold text-xl text-blue-600">
-                ShopCart - Tienda Online
-              </Link>
-              <nav className="space-x-4">
-                <Link to="/" className="text-gray-600 hover:text-blue-600 font-medium">Catálogo</Link>
-                <Link to="/cart" className="text-gray-600 hover:text-blue-600 font-medium">Carrito</Link>
-                <Link to="/login" className="text-gray-600 hover:text-blue-600 font-medium">Login</Link>
-              </nav>
-            </header>
+            <NavigationBar />
             
             <main className="container mx-auto px-4 py-6">
               <Routes>
                 <Route path="/" element={<Catalog />} />
-                <Route path="/login" element={<Login />} />
+                <Route path="/login" element={<LoginView />} />
                 <Route path="/cart" element={<CartView />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

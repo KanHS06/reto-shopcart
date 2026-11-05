@@ -3,31 +3,48 @@ import { User, AuthResponse } from '../types';
 
 export const authService = {
   async login(correo: string, contrasena: string): Promise<AuthResponse> {
-    const response = await api.post<AuthResponse>('/auth/login', { correo, contrasena });
-    if (response.data.accessToken) {
-      localStorage.setItem('accessToken', response.data.accessToken);
-      localStorage.setItem('refreshToken', response.data.refreshToken);
+    // Mapeamos las propiedades al inglés que exige el contrato del backend
+    const response = await api.post<AuthResponse>('/auth/login', { 
+      email: correo, 
+      password: contrasena 
+    });
+    
+    // Si tu backend devuelve los datos directamente en response.data
+    const data = response.data;
+    
+    if (data.accessToken) {
+      localStorage.setItem('accessToken', data.accessToken);
+      localStorage.setItem('refreshToken', data.refreshToken);
     }
-    return response.data;
+    return data;
   },
 
   async register(nombre: string, correo: string, contrasena: string): Promise<AuthResponse> {
-    const response = await api.post<AuthResponse>('/auth/register', { nombre, correo, contrasena });
-    if (response.data.accessToken) {
-      localStorage.setItem('accessToken', response.data.accessToken);
-      localStorage.setItem('refreshToken', response.data.refreshToken);
+    // Mapeamos las propiedades al inglés que exige el contrato del backend
+    const response = await api.post<AuthResponse>('/auth/register', { 
+      name: nombre,
+      email: correo, 
+      password: contrasena 
+    });
+    
+    // Si tu backend devuelve los datos directamente en response.data
+    const data = response.data;
+
+    if (data.accessToken) {
+      localStorage.setItem('accessToken', data.accessToken);
+      localStorage.setItem('refreshToken', data.refreshToken);
     }
-    return response.data;
+    return data;
   },
 
   logout(): void {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user'); // Limpiamos también el usuario al salir
     window.location.href = '/login';
   },
 
   getCurrentUser(): User | null {
-    //datos del usuario en localStorage o decodificarlos del token
     const userStr = localStorage.getItem('user');
     return userStr ? JSON.parse(userStr) : null;
   }

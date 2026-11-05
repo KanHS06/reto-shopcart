@@ -44,8 +44,16 @@ export const CartProvider: React.FC<CartProviderProps> = ({ children }) => {
     await loadCart();
   };
 
-  const total = items.reduce((acc, item) => acc + item.precio * item.cantidad, 0);
-  const totalItems = items.reduce((acc, item) => acc + item.cantidad, 0);
+  const total = items.reduce((acc, item) => {
+    const price = Number(item.price || item.precio || 0);
+    const qty = Number(item.quantity || item.cantidad || 0);
+    return acc + (price * qty);
+  }, 0);
+
+const totalItems = items.reduce((acc, item) => {
+  const qty = Number(item.quantity || item.cantidad || 0);
+  return acc + qty;
+}, 0);
 
   return (
     <CartContext.Provider value={{ items, addToCart, removeFromCart, total, totalItems }}>

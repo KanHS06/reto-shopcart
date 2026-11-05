@@ -2,6 +2,7 @@
 export interface User {
   id: number | string;
   nombre: string;
+  name?: string;
   correo: string;
   rol: 'cliente' | 'admin';
 }
