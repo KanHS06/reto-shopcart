@@ -2,9 +2,11 @@ import mssql from 'mssql';
 import { dbPool } from '../config/db.js';
 
 export interface ICartItem {
-  id: number;
-  qty: number;
-  price: number;
+  productId?: number;
+  quantity?: number;
+  id?: number;
+  qty?: number;
+  price?: number;
 }
 
 export const orderRepository = {
@@ -13,10 +15,16 @@ export const orderRepository = {
    * y ejecutando la transacción atómica en SQL Server con cupón opcional.
    */
   async createOrder(userId: number, items: ICartItem[], couponCode: string | null): Promise<number> {
-    // Construir la cadena XML a partir del arreglo de items
+    // Mapeo seguro que captura tanto 'productId/quantity' como 'id/qty'
     const xmlItems = items
-      .map(item => `<item id="${item.id}" qty="${item.qty}" price="${item.price}" />`)
+      .map(item => {
+        const id = item.productId ?? item.id ?? 0;
+        const qty = item.quantity ?? item.qty ?? 1;
+        const price = item.price ?? (item as any).precio ?? 0;
+        return `<item id="${id}" qty="${qty}" price="${price}" />`;
+      })
       .join('');
+      
     const cartXml = `<items>${xmlItems}</items>`;
 
     // Preparar la petición a SQL Server
@@ -24,7 +32,6 @@ export const orderRepository = {
     
     request.input('UserId', mssql.Int, userId);
     request.input('CartXml', mssql.Xml, cartXml);
-    // ENTRADA NUEVA: Mapeamos el código del cupón (puede ser string o null)
     request.input('CouponCode', mssql.VarChar(50), couponCode);
     request.output('GeneratedOrderId', mssql.Int);
 
