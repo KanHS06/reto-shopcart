@@ -6,6 +6,8 @@ import { CartProvider } from './context/CartContext';
 import { Catalog } from './pages/Catalog';
 import { CartView } from './pages/CartView';
 import { LoginView } from './pages/LoginView';
+import { ProtectedRoute } from './routes/ProtectedRoute';
+import { UserOrdersView } from './pages/UserOrdersView';
 
 // Componente interno para manejar la barra de navegación con estado de usuario
 const NavigationBar: React.FC = () => {
@@ -19,6 +21,10 @@ const NavigationBar: React.FC = () => {
       <nav className="space-x-4 flex items-center">
         <Link to="/" className="text-gray-600 hover:text-blue-600 font-medium">Catálogo</Link>
         <Link to="/cart" className="text-gray-600 hover:text-blue-600 font-medium">Carrito</Link>
+
+        {isAuthenticated && (
+          <Link to="/my-orders" className="text-gray-600 hover:text-blue-600 font-medium">Mis Compras</Link>
+        )}
         
         {isAuthenticated ? (
           <div className="flex items-center space-x-3 ml-2">
@@ -52,7 +58,26 @@ export function App() {
               <Routes>
                 <Route path="/" element={<Catalog />} />
                 <Route path="/login" element={<LoginView />} />
-                <Route path="/cart" element={<CartView />} />
+                
+                {/* Ruta del carrito protegida para exigir sesión activa antes de ver/comprar */}
+                <Route 
+                  path="/cart" 
+                  element={
+                    <ProtectedRoute>
+                      <CartView />
+                    </ProtectedRoute>
+                  } 
+                />
+
+                <Route 
+                  path="/my-orders" 
+                  element={
+                    <ProtectedRoute>
+                      <UserOrdersView />
+                    </ProtectedRoute>
+                  } 
+                />                
+
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
             </main>

@@ -28,4 +28,8 @@ export const orderService = {
       throw error;
     }
   },
+
+  async getOrdersByUser(userId: number) {
+    return await orderRepository.getOrdersByUser(userId);
+  },
 };

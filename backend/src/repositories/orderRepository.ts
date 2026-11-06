@@ -41,4 +41,15 @@ export const orderRepository = {
     // Retornar el ID de la orden generada
     return result.output.GeneratedOrderId as number;
   },
+
+  /**
+   * Obtiene el historial de órdenes de un usuario específico ejecutando SP_GetOrdersByUser.
+   */
+  async getOrdersByUser(userId: number) {
+    const request = dbPool.request();
+    request.input('UserId', mssql.Int, userId);
+
+    const result = await request.execute('SP_GetOrdersByUser');
+    return result.recordset;
+  },
 };

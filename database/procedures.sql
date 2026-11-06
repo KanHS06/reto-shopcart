@@ -243,3 +243,19 @@ BEGIN
     END CATCH
 END;
 GO
+
+--------------------------------------------------------------------------------
+-- Listar Órdenes por Usuario
+--------------------------------------------------------------------------------
+CREATE OR ALTER PROCEDURE SP_GetOrdersByUser
+    @UserId INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT id, total_amount AS total, status, created_at AS createdAt
+    FROM Orders
+    WHERE user_id = @UserId
+    ORDER BY created_at DESC;
+END;
+GO

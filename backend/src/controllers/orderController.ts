@@ -21,4 +21,19 @@ router.post('/checkout', requireAuth, async (req: IAuthRequest, res: Response, n
   }
 });
 
+// GET /api/orders/my-orders - Listar el historial de compras del usuario autenticado
+router.get('/my-orders', requireAuth, async (req: IAuthRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const realUserId = req.user!.userId;
+    const orders = await orderService.getOrdersByUser(realUserId); // Asegúrate de exponer este método en tu orderService
+    
+    res.status(200).json({
+      status: 'success',
+      data: orders,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export const orderRouter = router;
