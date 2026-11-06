@@ -71,3 +71,31 @@ CREATE TABLE AuditLog (
 ALTER TABLE Users 
 ADD role VARCHAR(20) NOT NULL DEFAULT 'Cliente' 
 CONSTRAINT CHK_Users_Role CHECK (role IN ('Cliente', 'Operador', 'Administrador'));
+
+-- Tabla de Variantes
+CREATE TABLE Variantes (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    product_id INT NOT NULL,
+    sku VARCHAR(100) UNIQUE NOT NULL,
+    attributes NVARCHAR(255) NOT NULL, -- Ej: 'Talla: M, Color: Azul'
+    price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
+    stock INT NOT NULL CHECK (stock >= 0),
+    created_at DATETIME DEFAULT GETDATE(),
+    CONSTRAINT FK_Variantes_Product FOREIGN KEY (product_id) REFERENCES Products(id) ON DELETE CASCADE
+);
+GO
+
+-- Tabla de Kardex
+CREATE TABLE Kardex (
+    IDMovimiento INT IDENTITY(1,1) PRIMARY KEY,
+    IDVariante INT NOT NULL,
+    TipoMovimiento VARCHAR(50) NOT NULL, -- 'ENTREGA', 'VENTA', 'AJUSTE', 'DEVOLUCION'
+    Cantidad INT NOT NULL,
+    Motivo NVARCHAR(255) NOT NULL,
+    IDUsuario INT NOT NULL,
+    FechaMovimiento DATETIME DEFAULT GETDATE(),
+    CONSTRAINT FK_Kardex_Variante FOREIGN KEY (IDVariante) REFERENCES Variantes(id),
+    CONSTRAINT FK_Kardex_Usuario FOREIGN KEY (IDUsuario) REFERENCES Users(id),
+    CONSTRAINT CHK_Cantidad_DiferenteDeCero CHECK (Cantidad <> 0)
+);
+GO

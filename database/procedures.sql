@@ -261,7 +261,7 @@ END;
 GO
 
 -- Procedure para obtener todos los usuarios
-CREATE PROCEDURE SP_GetAllUsers
+CREATE OR ALTER PROCEDURE SP_GetAllUsers
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -270,7 +270,7 @@ END;
 GO
 
 -- Procedure para obtener todos los cupones
-CREATE PROCEDURE SP_GetAllCoupons
+CREATE OR ALTER PROCEDURE SP_GetAllCoupons
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -280,7 +280,7 @@ END;
 GO
 
 -- Procedure para crear un cupón
-CREATE PROCEDURE SP_CreateCoupon
+CREATE OR ALTER PROCEDURE SP_CreateCoupon
     @Code VARCHAR(50),
     @Discount DECIMAL(5,2)
 AS
@@ -288,5 +288,115 @@ BEGIN
     SET NOCOUNT ON;
     INSERT INTO Coupons (code, discount_percent, is_active)
     VALUES (@Code, @Discount, 1);
+END;
+GO
+
+CREATE OR ALTER PROCEDURE SP_GetAdminDashboardStats
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        (SELECT COUNT(*) FROM Users) AS totalUsers,
+        (SELECT COUNT(*) FROM Products) AS totalProducts,
+        (SELECT COUNT(*) FROM Orders) AS totalOrders,
+        (SELECT ISNULL(SUM(total_amount), 0) FROM Orders) AS totalRevenue;
+END;
+GO
+
+-- Stored Procedure para registrar movimientos y validar que no quede stock en negativo
+CREATE OR ALTER PROCEDURE SP_Kardex_RegistrarMovimiento
+    @IDVariante INT,
+    @TipoMovimiento VARCHAR(50),
+    @Cantidad INT,
+    @Motivo NVARCHAR(255),
+    @IDUsuario INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @StockActual INT;
+    SELECT @StockActual = stock FROM Variantes WHERE id = @IDVariante;
+
+    -- Validar regla de negocio: el stock de la variante no puede quedar en negativo
+    IF (@StockActual + @Cantidad < 0)
+    BEGIN
+        RAISERROR('Error: Cantidad insuficiente en el stock.', 16, 1);
+        RETURN;
+    END
+
+    -- Registrar el movimiento en el Kardex
+    INSERT INTO Kardex (IDVariante, TipoMovimiento, Cantidad, Motivo, IDUsuario)
+    VALUES (@IDVariante, @TipoMovimiento, @Cantidad, @Motivo, @IDUsuario);
+
+    -- Actualizar el stock físico de la variante
+    UPDATE Variantes 
+    SET stock = stock + @Cantidad 
+    WHERE id = @IDVariante;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE SP_Cupones_ValidarYAplicar
+    @CodigoCupón VARCHAR(50),
+    @MontoCompra DECIMAL(10,2),
+    @IDCliente INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @IDCupon INT, @Vigencia DATETIME, @MontoMinimo DECIMAL(10,2), @Activo BIT;
+
+    SELECT @IDCupon = id, @Vigencia = expires_at, @Activo = is_active 
+    FROM Coupons 
+    WHERE code = @CodigoCupón;
+
+    -- Validar existencia y estado
+    IF @IDCupon IS NULL OR @Activo = 0
+    BEGIN
+        RAISERROR('El cupón ingresado no es válido o ya no se encuentra activo.', 16, 1);
+        RETURN;
+    END
+
+    -- Validar vigencia
+    IF GETDATE() > @Vigencia
+    BEGIN
+        RAISERROR('Este cupón ha expirado.', 16, 1);
+        RETURN;
+    END
+
+    -- (Opcional según tus tablas de control de usos por cliente y monto mínimo)
+    SELECT 'Cupón aplicado con éxito' AS Mensaje;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE SP_Checkout_ReservarStock
+    @IDVariante INT,
+    @CantidadSolicitada INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @StockDisponible INT;
+    SELECT @StockDisponible = stock FROM Variantes WHERE id = @IDVariante;
+
+    IF @StockDisponible < @CantidadSolicitada
+    BEGIN
+        RAISERROR('Lo sentimos, la última unidad acaba de ser comprada por otro cliente o no hay stock suficiente.', 16, 1);
+        RETURN;
+    END
+
+    -- Aquí procederías a realizar la reserva temporal de los 15 minutos
+    SELECT 'Stock reservado correctamente' AS Mensaje;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE SP_Variantes_ObtenerPorProducto
+    @ProductID INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT id, product_id, sku, attributes, price, stock 
+    FROM Variantes 
+    WHERE product_id = @ProductID;
 END;
 GO

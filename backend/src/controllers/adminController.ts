@@ -28,5 +28,14 @@ export const adminController = {
     } catch (error) {
       next(error);
     }
+  },
+  
+  async getStats(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const stats = await adminRepository.getDashboardStats();
+      res.status(200).json({ status: 'success', data: stats });
+    } catch (error) {
+      next(error);
+    }
   }
 };

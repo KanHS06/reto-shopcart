@@ -22,5 +22,11 @@ export const adminRepository = {
       .input('Code', mssql.VarChar(50), code)
       .input('Discount', mssql.Decimal(5, 2), discountPercentage)
       .execute('SP_CreateCoupon');
+  },
+  
+  async getDashboardStats() {
+    const result = await dbPool.request()
+      .execute('SP_GetAdminDashboardStats');
+    return result.recordset[0]; // Retorna el objeto con las métricas resumidas
   }
-};
+}
