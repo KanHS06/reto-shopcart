@@ -4,7 +4,8 @@ export interface User {
   nombre: string;
   name?: string;
   correo: string;
-  rol: 'cliente' | 'admin';
+  rol?: string;  // Mantiene compatibilidad si viene como 'rol'
+  role?: string;
 }
 
 export interface AuthResponse {

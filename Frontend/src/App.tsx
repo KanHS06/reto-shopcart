@@ -8,6 +8,8 @@ import { CartView } from './pages/CartView';
 import { LoginView } from './pages/LoginView';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import { UserOrdersView } from './pages/UserOrdersView';
+import { AdminDashboardView } from './pages/AdminDashboardView';
+import { AdminManagementView } from './pages/AdminManagementView';
 
 // Componente interno para manejar la barra de navegación con estado de usuario
 const NavigationBar: React.FC = () => {
@@ -25,6 +27,16 @@ const NavigationBar: React.FC = () => {
         {isAuthenticated && (
           <Link to="/my-orders" className="text-gray-600 hover:text-blue-600 font-medium">Mis Compras</Link>
         )}
+
+        {isAuthenticated && ((user as any)?.rol === 'Administrador' || (user as any)?.role === 'Administrador' || (user as any)?.rol === 'Operador' || (user as any)?.role === 'Operador') && (
+          <Link to="/admin/dashboard" className="text-purple-600 hover:text-purple-800 font-semibold">Panel Admin</Link>
+        )}  
+
+        {isAuthenticated && (user?.rol === 'Administrador' || user?.role === 'Administrador') && (
+          <Link to="/admin/management" className="text-red-600 hover:text-red-800 font-semibold">
+            Gestión Admin
+          </Link>
+        )}                
         
         {isAuthenticated ? (
           <div className="flex items-center space-x-3 ml-2">
@@ -76,7 +88,25 @@ export function App() {
                       <UserOrdersView />
                     </ProtectedRoute>
                   } 
-                />                
+                />   
+
+                <Route 
+                  path="/admin/dashboard" 
+                  element={
+                    <ProtectedRoute allowedRoles={['Administrador', 'Operador']}>
+                      <AdminDashboardView />
+                    </ProtectedRoute>
+                  } 
+                />  
+
+                <Route 
+                  path="/admin/management" 
+                  element={
+                    <ProtectedRoute allowedRoles={['Administrador']}>
+                      <AdminManagementView />
+                    </ProtectedRoute>
+                  } 
+                />                           
 
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

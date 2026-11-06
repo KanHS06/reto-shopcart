@@ -259,3 +259,34 @@ BEGIN
     ORDER BY created_at DESC;
 END;
 GO
+
+-- Procedure para obtener todos los usuarios
+CREATE PROCEDURE SP_GetAllUsers
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT id, email, name, role, created_at FROM Users;
+END;
+GO
+
+-- Procedure para obtener todos los cupones
+CREATE PROCEDURE SP_GetAllCoupons
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT id, code, discount_percent as discountPercentage, is_active as isActive 
+    FROM Coupons;
+END;
+GO
+
+-- Procedure para crear un cupón
+CREATE PROCEDURE SP_CreateCoupon
+    @Code VARCHAR(50),
+    @Discount DECIMAL(5,2)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO Coupons (code, discount_percent, is_active)
+    VALUES (@Code, @Discount, 1);
+END;
+GO

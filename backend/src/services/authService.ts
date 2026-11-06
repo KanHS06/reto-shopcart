@@ -51,7 +51,7 @@ export const authService = {
     await authRepository.saveRefreshToken(user.id, refreshToken, expiresAt);
 
     return {
-      user: { id: user.id, email: user.email, name: user.name },
+      user: { id: user.id, email: user.email, name: user.name, rol: user.role },
       accessToken,
       refreshToken
     };

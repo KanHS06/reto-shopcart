@@ -4,6 +4,7 @@ import { errorHandler } from './middlewares/errorHandler.js';
 import { productRouter } from './controllers/productController.js';
 import { orderRouter } from './controllers/orderController.js';
 import { authRouter } from './controllers/authController.js';
+import { adminRouter } from './controllers/adminRoutes.js';
 
 const app: Application = express();
 
@@ -22,6 +23,8 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRouter);
 app.use('/api/products', productRouter);
 app.use('/api/orders', orderRouter);
+app.use('/api', adminRouter);
+
 
 // El errorHandler SIEMPRE al final
 app.use(errorHandler);
