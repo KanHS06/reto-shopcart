@@ -16,13 +16,28 @@ GO
 --------------------------------------------------------------------------------
 -- Listar Catálogo de Productos Completo
 --------------------------------------------------------------------------------
-CREATE OR ALTER PROCEDURE SP_GetProductsCatalog
+CREATE OR ALTER PROCEDURE dbo.SP_GetProductsCatalog
 AS
 BEGIN
     SET NOCOUNT ON;
     
-    SELECT id, name, description, price, stock, image_url, created_at
-    FROM Products;
+    -- Devolvemos los productos y anidamos sus variantes como un objeto JSON
+    SELECT 
+        p.id,
+        p.name,
+        p.description,
+        p.price,
+        p.stock,
+        p.image_url AS imageUrl,
+        p.created_at,
+        -- Subconsulta que agrupa todas las variantes del producto en formato JSON
+        (
+            SELECT v.id, v.sku, v.price, v.stock, v.attributes
+            FROM dbo.Variantes v
+            WHERE v.product_id = p.id
+            FOR JSON PATH
+        ) AS variantsJson
+    FROM dbo.Products p;
 END;
 GO
 
@@ -86,10 +101,23 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
+    -- 1. Insertamos el producto principal
     INSERT INTO Products (name, description, price, stock, image_url, created_at)
     VALUES (@Name, @Description, @Price, @Stock, @ImageUrl, GETDATE());
 
+    -- Capturamos el ID del producto recién creado
     SET @GeneratedProductId = SCOPE_IDENTITY();
+
+    -- 2. Insertamos automáticamente su variante por defecto
+    -- Usamos el precio y stock iniciales, y generamos un SKU base (ej. SKU-ID)
+    INSERT INTO Variantes (id_producto, sku, price, stock, attributes)
+    VALUES (
+        @GeneratedProductId, 
+        CONCAT('SKU-', @GeneratedProductId), 
+        @Price, 
+        @Stock, 
+        'Estándar'
+    );
 END;
 GO
 
@@ -364,7 +392,6 @@ BEGIN
         RETURN;
     END
 
-    -- (Opcional según tus tablas de control de usos por cliente y monto mínimo)
     SELECT 'Cupón aplicado con éxito' AS Mensaje;
 END;
 GO
@@ -398,5 +425,266 @@ BEGIN
     SELECT id, product_id, sku, attributes, price, stock 
     FROM Variantes 
     WHERE product_id = @ProductID;
+END;
+GO
+
+-- CARRITO POR USUARIO
+CREATE PROCEDURE dbo.SP_Carrito_ObtenerPorUsuario
+    @IDUsuario INT = NULL,
+    @GuestToken VARCHAR(255) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @IDUsuario IS NOT NULL
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM dbo.Carts WHERE user_id = @IDUsuario)
+        BEGIN
+            INSERT INTO dbo.Carts (user_id, created_at, updated_at)
+            VALUES (@IDUsuario, GETDATE(), GETDATE());
+        END
+
+        SELECT 
+            c.IDCarrito, 
+            ci.IDItem, 
+            ci.IDVariante, 
+            ci.quantity, 
+            v.price, 
+            v.attributes, 
+            p.name AS ProductName
+        FROM dbo.Carts c
+        LEFT JOIN dbo.CartItems ci ON c.IDCarrito = ci.IDCarrito
+        LEFT JOIN dbo.Variantes v ON ci.IDVariante = v.id
+        LEFT JOIN dbo.Products p ON v.product_id = p.id
+        WHERE c.user_id = @IDUsuario;
+    END
+    ELSE IF @GuestToken IS NOT NULL
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM dbo.Carts WHERE guest_token = @GuestToken)
+        BEGIN
+            INSERT INTO dbo.Carts (guest_token, created_at, updated_at)
+            VALUES (@GuestToken, GETDATE(), GETDATE());
+        END
+
+        SELECT 
+            c.IDCarrito, 
+            ci.IDItem, 
+            ci.IDVariante, 
+            ci.quantity, 
+            v.price, 
+            v.attributes, 
+            p.name AS ProductName
+        FROM dbo.Carts c
+        LEFT JOIN dbo.CartItems ci ON c.IDCarrito = ci.IDCarrito
+        LEFT JOIN dbo.Variantes v ON ci.IDVariante = v.id
+        LEFT JOIN dbo.Products p ON v.product_id = p.id
+        WHERE c.guest_token = @GuestToken;
+    END
+END;
+GO
+
+--------------------------------------------------------------------------------
+-- Actualizar la cantidad de un ítem en el carrito validando el stock
+--------------------------------------------------------------------------------
+CREATE OR ALTER PROCEDURE SP_Carrito_ActualizarCantidad
+    @IDItem INT,
+    @NewQuantity INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF (@NewQuantity <= 0)
+    BEGIN
+        RAISERROR('La cantidad debe ser mayor a cero.', 16, 1);
+        RETURN;
+    END
+
+    -- Validar stock disponible de la variante asociada al ítem
+    DECLARE @IDVariante INT, @StockDisponible INT;
+    SELECT @IDVariante = IDVariante FROM CartItems WHERE IDItem = @IDItem;
+
+    SELECT @StockDisponible = stock FROM Variantes WHERE id = @IDVariante;
+
+    IF (@NewQuantity > @StockDisponible)
+    BEGIN
+        RAISERROR('Cantidad insuficiente en el stock.', 16, 1);
+        RETURN;
+    END
+
+    UPDATE CartItems 
+    SET quantity = @NewQuantity 
+    WHERE IDItem = @IDItem;
+END;
+GO
+
+--------------------------------------------------------------------------------
+-- Eliminar un ítem específico del carrito
+--------------------------------------------------------------------------------
+CREATE OR ALTER PROCEDURE SP_Carrito_EliminarItem
+    @IDItem INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DELETE FROM CartItems 
+    WHERE IDItem = @IDItem;
+END;
+GO
+
+-- SP para Agregar o Incrementar Ítem con validación estricta de esquema dbo.
+CREATE OR ALTER PROCEDURE dbo.SP_Carrito_AgregarItem
+    @IDUsuario INT = NULL,
+    @GuestToken VARCHAR(255) = NULL,
+    @IDVariante INT,
+    @Quantity INT = 1
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @IDCarrito INT;
+
+    IF @Quantity IS NULL OR @Quantity <= 0 SET @Quantity = 1;
+    IF @IDUsuario IS NULL AND @GuestToken IS NULL SET @IDUsuario = 1;
+
+    IF @IDUsuario IS NOT NULL
+    BEGIN
+        SELECT @IDCarrito = IDCarrito FROM dbo.Carts WHERE user_id = @IDUsuario;
+        IF @IDCarrito IS NULL
+        BEGIN
+            INSERT INTO dbo.Carts (user_id, created_at, updated_at) VALUES (@IDUsuario, GETDATE(), GETDATE());
+            SET @IDCarrito = SCOPE_IDENTITY();
+        END
+    END
+    ELSE IF @GuestToken IS NOT NULL
+    BEGIN
+        SELECT @IDCarrito = IDCarrito FROM dbo.Carts WHERE guest_token = @GuestToken;
+        IF @IDCarrito IS NULL
+        BEGIN
+            INSERT INTO dbo.Carts (guest_token, created_at, updated_at) VALUES (@GuestToken, GETDATE(), GETDATE());
+            SET @IDCarrito = SCOPE_IDENTITY();
+        END
+    END
+
+    -- Asegurar que se use estrictamente dbo.CartItems
+    IF EXISTS (SELECT 1 FROM dbo.CartItems WHERE IDCarrito = @IDCarrito AND IDVariante = @IDVariante)
+    BEGIN
+        UPDATE dbo.CartItems SET quantity = quantity + @Quantity WHERE IDCarrito = @IDCarrito AND IDVariante = @IDVariante;
+    END
+    ELSE
+    BEGIN
+        INSERT INTO dbo.CartItems (IDCarrito, IDVariante, quantity) VALUES (@IDCarrito, @IDVariante, @Quantity);
+    END
+END;
+GO
+
+-- SP para Actualizar Cantidad con dbo.
+CREATE OR ALTER PROCEDURE dbo.SP_Carrito_ActualizarCantidad
+    @IDItem INT,
+    @NewQuantity INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE dbo.CartItems SET quantity = @NewQuantity WHERE IDItem = @IDItem;
+END;
+GO
+
+-- 3. SP para Eliminar Ítem con dbo.
+CREATE OR ALTER PROCEDURE dbo.SP_Carrito_EliminarItem
+    @IDItem INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DELETE FROM dbo.CartItems WHERE IDItem = @IDItem;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE SP_CrearOrdenDesdeCarrito
+    @UserId INT,
+    @GeneratedOrderId INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRANSACTION;
+
+    BEGIN TRY
+        -- 1. Verificar si el usuario tiene un carrito activo usando la tabla Carts
+        DECLARE @CartId INT;
+        SELECT @CartId = IDCarrito FROM Carts WHERE user_id = @UserId;
+
+        IF @CartId IS NULL
+        BEGIN
+            RAISERROR('No se encontró un carrito activo para este usuario.', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+
+        -- Verificar si hay ítems en el carrito
+        IF NOT EXISTS (SELECT 1 FROM CartItems WHERE IDCarrito = @CartId)
+        BEGIN
+            RAISERROR('El carrito está vacío.', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+
+        -- 2. Validar stock de todas las variantes antes de procesar
+        DECLARE @InvalidVariantName VARCHAR(150);
+        SELECT TOP 1 @InvalidVariantName = p.name 
+        FROM CartItems ci
+        INNER JOIN Variantes v ON ci.IDVariante = v.id
+        INNER JOIN Products p ON v.product_id = p.id
+        WHERE ci.IDCarrito = @CartId AND ci.quantity > v.stock;
+
+        IF @InvalidVariantName IS NOT NULL
+        BEGIN
+            RAISERROR('Stock insuficiente para uno o más productos en el carrito.', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+
+        -- 3. Calcular el monto total del pedido
+        DECLARE @TotalAmount DECIMAL(10,2);
+        SELECT @TotalAmount = SUM(ci.quantity * v.price)
+        FROM CartItems ci
+        INNER JOIN Variantes v ON ci.IDVariante = v.id
+        WHERE ci.IDCarrito = @CartId;
+
+        -- 4. Crear la Orden principal
+        INSERT INTO Orders (user_id, total_amount, status, created_at)
+        VALUES (@UserId, @TotalAmount, 'COMPLETED', GETDATE());
+
+        SET @GeneratedOrderId = SCOPE_IDENTITY();
+
+        -- 5. Insertar los detalles de la orden
+        INSERT INTO OrderDetails (order_id, variant_id, quantity, price_at_purchase)
+        SELECT 
+            @GeneratedOrderId,
+            ci.IDVariante,
+            ci.quantity,
+            v.price
+        FROM CartItems ci
+        INNER JOIN Variantes v ON ci.IDVariante = v.id
+        WHERE ci.IDCarrito = @CartId;
+
+        -- 6. Descontar automáticamente el stock de la tabla Variantes
+        UPDATE v
+        SET v.stock = v.stock - ci.quantity
+        FROM Variantes v
+        INNER JOIN CartItems ci ON v.id = ci.IDVariante
+        WHERE ci.IDCarrito = @CartId;
+
+        -- 7. Limpiar el carrito del usuario
+        DELETE FROM CartItems WHERE IDCarrito = @CartId;
+
+        -- Confirmar transacción
+        COMMIT TRANSACTION;
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+            
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        RAISERROR(@ErrorMessage, 16, 1);
+    END CATCH
 END;
 GO

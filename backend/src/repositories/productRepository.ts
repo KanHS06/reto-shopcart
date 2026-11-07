@@ -1,15 +1,15 @@
 import mssql from 'mssql';
 import { dbPool } from '../config/db.js';
 
-// Definimos la interfaz que representa la estructura de un producto en la BD
 export interface IProduct {
   id: number;
   name: string;
   description: string | null;
   price: number;
   stock: number;
-  image_url: string | null;
+  imageUrl: string | null;
   created_at: Date;
+  variants?: any[]; // <-- Arreglo opcional para las variantes
 }
 
 export const productRepository = {
@@ -18,7 +18,31 @@ export const productRepository = {
    */
   async getCatalog(): Promise<IProduct[]> {
     const result = await dbPool.request().execute('SP_GetProductsCatalog');
-    return result.recordset as IProduct[];
+    
+    // Mapeamos los registros para convertir el string JSON de variantes en un array de objetos
+    const products = result.recordset.map((record: any) => {
+      let parsedVariants = [];
+      if (record.variantsJson) {
+        try {
+          parsedVariants = JSON.parse(record.variantsJson);
+        } catch (e) {
+          parsedVariants = [];
+        }
+      }
+
+      return {
+        id: record.id,
+        name: record.name,
+        description: record.description,
+        price: record.price,
+        stock: record.stock,
+        imageUrl: record.imageUrl,
+        created_at: record.created_at,
+        variants: parsedVariants // <-- Asignamos el arreglo ya parseado
+      };
+    });
+
+    return products;
   },
 
   async create(product: Omit<IProduct, 'id' | 'created_at'>): Promise<number> {
@@ -27,7 +51,7 @@ export const productRepository = {
     request.input('Description', mssql.Text, product.description);
     request.input('Price', mssql.Decimal(10, 2), product.price);
     request.input('Stock', mssql.Int, product.stock);
-    request.input('ImageUrl', mssql.VarChar(255), product.image_url);
+    request.input('ImageUrl', mssql.VarChar(255), product.imageUrl);
     request.output('GeneratedProductId', mssql.Int, null);
 
     const result = await request.execute('SP_AdminCreateProduct');
@@ -41,7 +65,7 @@ export const productRepository = {
       .input('Description', mssql.Text, product.description)
       .input('Price', mssql.Decimal(10, 2), product.price)
       .input('Stock', mssql.Int, product.stock)
-      .input('ImageUrl', mssql.VarChar(255), product.image_url)
+      .input('ImageUrl', mssql.VarChar(255), product.imageUrl)
       .execute('SP_AdminUpdateProduct');
 
     return result.recordset[0].RowsAffected > 0;

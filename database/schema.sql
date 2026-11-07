@@ -43,11 +43,11 @@ CREATE TABLE Orders (
 CREATE TABLE OrderDetails (
     id INT IDENTITY(1,1) PRIMARY KEY,
     order_id INT NOT NULL,
-    product_id INT NOT NULL,
+    variant_id INT NOT NULL,
     quantity INT NOT NULL CHECK (quantity > 0),
-    price_at_purchase DECIMAL(10,2) NOT NULL, -- Historial del precio al momento de comprar
+    price_at_purchase DECIMAL(10,2) NOT NULL,
     FOREIGN KEY (order_id) REFERENCES Orders(id) ON DELETE CASCADE,
-    FOREIGN KEY (product_id) REFERENCES Products(id)
+    FOREIGN KEY (variant_id) REFERENCES Variantes(id)
 );
 -- Tabla de Cupones de Descuento
 CREATE TABLE Coupons (
@@ -97,5 +97,26 @@ CREATE TABLE Kardex (
     CONSTRAINT FK_Kardex_Variante FOREIGN KEY (IDVariante) REFERENCES Variantes(id),
     CONSTRAINT FK_Kardex_Usuario FOREIGN KEY (IDUsuario) REFERENCES Users(id),
     CONSTRAINT CHK_Cantidad_DiferenteDeCero CHECK (Cantidad <> 0)
+);
+GO
+
+-- Tabla principal del Carrito
+CREATE TABLE Carts (
+    IDCarrito INT IDENTITY(1,1) PRIMARY KEY,
+    user_id INT NULL,
+    guest_token VARCHAR(255) NULL,
+    created_at DATETIME DEFAULT GETDATE(),
+    updated_at DATETIME DEFAULT GETDATE()
+);
+GO
+
+-- Creación de la tabla de Detalle del Carrito
+CREATE TABLE CartItems (
+    IDItem INT IDENTITY(1,1) PRIMARY KEY,
+    IDCarrito INT NOT NULL,
+    IDVariante INT NOT NULL,
+    quantity INT NOT NULL CHECK (quantity > 0),
+    CONSTRAINT FK_CartItems_Cart FOREIGN KEY (IDCarrito) REFERENCES Carts(IDCarrito) ON DELETE CASCADE,
+    CONSTRAINT FK_CartItems_Variant FOREIGN KEY (IDVariante) REFERENCES Variantes(id)
 );
 GO

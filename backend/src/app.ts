@@ -6,6 +6,7 @@ import { orderRouter } from './controllers/orderController.js';
 import { authRouter } from './controllers/authController.js';
 import { adminRouter } from './routes/adminRoutes.js';
 import inventoryRoutes from './routes/inventoryRoutes.js';
+import cartRoutes from './routes/cartRoutes.js';
 
 const app: Application = express();
 
@@ -26,6 +27,7 @@ app.use('/api/products', productRouter);
 app.use('/api/orders', orderRouter);
 app.use('/api', adminRouter);
 app.use('/api', inventoryRoutes);
+app.use('/api', cartRoutes);
 
 // El errorHandler SIEMPRE al final
 app.use(errorHandler);
